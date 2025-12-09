@@ -9,7 +9,7 @@ import random
 # =======================================================================================
 
 # The client sends messages to another OSC server on localhost port 8001.
-client = SimpleUDPClient("localhost", 8001)
+client = SimpleUDPClient("127.0.0.1", 8001)
 
 # This function is called whenever a message is received at the /gan/temperature address.
 # It uses the client to send a message to the /gan/MIDImessage route with the value increased by 100 and cast as an integer.
@@ -29,6 +29,6 @@ dispatcher = dispatcher.Dispatcher()
 dispatcher.map("/gan/temperature", generate_MIDI_event)
 
 # The server listens on localhost port 8002 for incoming messages, and uses the dispatcher to handle them.
-server = osc_server.ThreadingOSCUDPServer(("localhost", 8002), dispatcher)
-print("Serving on {}".format(server.server_address))
-server.serve_forever()
+with osc_server.ThreadingOSCUDPServer(("127.0.0.1", 8002), dispatcher) as server:
+    print("Serving on {}".format(server.server_address))
+    server.serve_forever()
