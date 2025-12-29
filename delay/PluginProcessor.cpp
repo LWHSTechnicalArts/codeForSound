@@ -22,6 +22,12 @@ JeffTrevinoDelayAudioProcessor::JeffTrevinoDelayAudioProcessor()
                        )
 #endif
 {
+    
+    addParameter(mDryWetParameter = new juce::AudioParameterFloat({"drywet", 1}, "Dry Wet", 0, 1.0, 0.5));
+    addParameter(mFeedbackParameter = new juce::AudioParameterFloat({"feedback", 1}, "Feedback", 0, 0.98, 0.5));
+    addParameter(mDelayTimeParameter = new juce::AudioParameterFloat({"delaytime", 1}, "Delay Time", 0.01, MAX_DELAY_TIME, 0.5));
+    
+    
     mCircularBufferLeft = nullptr;
     mCircularBufferRight = nullptr;
     mCircularBufferWriteHead = 0;
@@ -31,6 +37,8 @@ JeffTrevinoDelayAudioProcessor::JeffTrevinoDelayAudioProcessor()
     
     mFeedbackLeft = 0;
     mFeedbackRight = 0;
+    
+    mDryWet = 0.5;
 }
 
 JeffTrevinoDelayAudioProcessor::~JeffTrevinoDelayAudioProcessor()
@@ -114,7 +122,6 @@ void JeffTrevinoDelayAudioProcessor::prepareToPlay (double sampleRate, int sampl
     mCircularBufferWriteHead = 0;
     mCircularBufferReadHead = 0;
     mCircularBufferLength = sampleRate * MAX_DELAY_TIME;
-    mDelayTimeInSamples = sampleRate * 0.5;
     
     if (mCircularBufferLeft == nullptr) {
         mCircularBufferLeft = new float [mCircularBufferLength]();
@@ -178,6 +185,8 @@ void JeffTrevinoDelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
     
     for (int i = 0; i < buffer.getNumSamples(); i++) {
         
+        mDelayTimeInSamples = getSampleRate() * *mDelayTimeParameter;
+        
         mCircularBufferLeft[mCircularBufferWriteHead] = leftChannel[i] + mFeedbackLeft;
         mCircularBufferRight[mCircularBufferWriteHead] = rightChannel[i] + mFeedbackRight;
         
@@ -190,11 +199,11 @@ void JeffTrevinoDelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
         float delay_sample_left = mCircularBufferLeft[(int)mCircularBufferReadHead];
         float delay_sample_right = mCircularBufferRight[(int)mCircularBufferReadHead];
         
-        mFeedbackLeft = delay_sample_left * 0.8;
-        mFeedbackRight = delay_sample_right * 0.8;
+        mFeedbackLeft = delay_sample_left * *mFeedbackParameter;
+        mFeedbackRight = delay_sample_right * *mFeedbackParameter;
         
-        buffer.addSample(0, i, delay_sample_left);
-        buffer.addSample(1, i, delay_sample_right);
+        buffer.setSample(0, i, buffer.getSample(0, i) * *mDryWetParameter + delay_sample_left * (1 - *mDryWetParameter));
+        buffer.setSample(1, i, buffer.getSample(1, i) * *mDryWetParameter + delay_sample_right * (1 - *mDryWetParameter));
         
         mCircularBufferWriteHead++;
         if (mCircularBufferWriteHead >= mCircularBufferLength) {

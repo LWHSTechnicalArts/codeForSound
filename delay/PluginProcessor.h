@@ -57,12 +57,20 @@ public:
 
 private:
     //==============================================================================
+    juce::AudioParameterFloat* mDryWetParameter;
+    juce::AudioParameterFloat* mFeedbackParameter;
+    juce::AudioParameterFloat* mDelayTimeParameter;
+    
+    float mDryWet;
+    
     float* mCircularBufferLeft;
     float* mCircularBufferRight;
+    
     int mCircularBufferWriteHead;
     int mCircularBufferLength;
     float mDelayTimeInSamples;
     float mCircularBufferReadHead;
+    
     float mFeedbackLeft;
     float mFeedbackRight;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (JeffTrevinoDelayAudioProcessor)
