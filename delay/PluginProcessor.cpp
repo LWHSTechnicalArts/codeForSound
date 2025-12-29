@@ -196,8 +196,19 @@ void JeffTrevinoDelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
             mCircularBufferReadHead += mCircularBufferLength;
         }
         
-        float delay_sample_left = mCircularBufferLeft[(int)mCircularBufferReadHead];
-        float delay_sample_right = mCircularBufferRight[(int)mCircularBufferReadHead];
+        // assuming an intersample value for mDelayReadHead, separate int from mantessa:
+        int readHead_x = (int)mCircularBufferReadHead;
+        int readHead_x1 = readHead_x + 1;
+        
+        float readHeadFloat = mCircularBufferReadHead - readHead_x;
+        
+        if (readHead_x1 >= mCircularBufferLength) {
+            readHead_x1 -= mCircularBufferLength;
+        }
+        
+        
+        float delay_sample_left = lin_interp(mCircularBufferLeft[readHead_x], mCircularBufferLeft[readHead_x1], readHeadFloat);
+        float delay_sample_right = lin_interp(mCircularBufferRight[readHead_x], mCircularBufferRight[readHead_x1], readHeadFloat);
         
         mFeedbackLeft = delay_sample_left * *mFeedbackParameter;
         mFeedbackRight = delay_sample_right * *mFeedbackParameter;
@@ -242,4 +253,9 @@ void JeffTrevinoDelayAudioProcessor::setStateInformation (const void* data, int 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new JeffTrevinoDelayAudioProcessor();
+}
+
+float JeffTrevinoDelayAudioProcessor::lin_interp(float sample_x, float sample_x1, float inPhase)
+{
+    return (1 - inPhase) * sample_x + inPhase * sample_x1;
 }
