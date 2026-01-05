@@ -39,6 +39,8 @@ JeffTrevinoDelayAudioProcessor::JeffTrevinoDelayAudioProcessor()
     mFeedbackRight = 0;
     
     mDryWet = 0.5;
+    
+    mDelayTimeSmoothed = 0;
 }
 
 JeffTrevinoDelayAudioProcessor::~JeffTrevinoDelayAudioProcessor()
@@ -119,6 +121,8 @@ void JeffTrevinoDelayAudioProcessor::changeProgramName (int index, const juce::S
 //==============================================================================
 void JeffTrevinoDelayAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    mDelayTimeSmoothed = *mDelayTimeParameter;
+    
     mCircularBufferWriteHead = 0;
     mCircularBufferReadHead = 0;
     mCircularBufferLength = sampleRate * MAX_DELAY_TIME;
@@ -180,47 +184,49 @@ void JeffTrevinoDelayAudioProcessor::processBlock (juce::AudioBuffer<float>& buf
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
     
-    float* leftChannel = buffer.getWritePointer(0);
-    float* rightChannel = buffer.getWritePointer(1);
+        float* leftChannel = buffer.getWritePointer(0);
+        float* rightChannel = buffer.getWritePointer(1);
     
-    for (int i = 0; i < buffer.getNumSamples(); i++) {
-        
-        mDelayTimeInSamples = getSampleRate() * *mDelayTimeParameter;
-        
-        mCircularBufferLeft[mCircularBufferWriteHead] = leftChannel[i] + mFeedbackLeft;
-        mCircularBufferRight[mCircularBufferWriteHead] = rightChannel[i] + mFeedbackRight;
-        
-        mCircularBufferReadHead = mCircularBufferWriteHead - mDelayTimeInSamples;
-        
-        if (mCircularBufferReadHead < 0) {
-            mCircularBufferReadHead += mCircularBufferLength;
+        for (int i = 0; i < buffer.getNumSamples(); i++) {
+            
+            mDelayTimeSmoothed = mDelayTimeSmoothed - 0.001 * (mDelayTimeSmoothed - *mDelayTimeParameter);
+            
+            mDelayTimeInSamples = getSampleRate() * mDelayTimeSmoothed;
+            
+            mCircularBufferLeft[mCircularBufferWriteHead] = leftChannel[i] + mFeedbackLeft;
+            mCircularBufferRight[mCircularBufferWriteHead] = rightChannel[i] + mFeedbackRight;
+            
+            mCircularBufferReadHead = mCircularBufferWriteHead - mDelayTimeInSamples;
+            
+            if (mCircularBufferReadHead < 0) {
+                mCircularBufferReadHead += mCircularBufferLength;
+            }
+            
+            // assuming an intersample value for mDelayReadHead, separate int from mantessa:
+            int readHead_x = (int)mCircularBufferReadHead;
+            int readHead_x1 = readHead_x + 1;
+            
+            float readHeadFloat = mCircularBufferReadHead - readHead_x;
+            
+            if (readHead_x1 >= mCircularBufferLength) {
+                readHead_x1 -= mCircularBufferLength;
+            }
+            
+            
+            float delay_sample_left = lin_interp(mCircularBufferLeft[readHead_x], mCircularBufferLeft[readHead_x1], readHeadFloat);
+            float delay_sample_right = lin_interp(mCircularBufferRight[readHead_x], mCircularBufferRight[readHead_x1], readHeadFloat);
+            
+            mFeedbackLeft = delay_sample_left * *mFeedbackParameter;
+            mFeedbackRight = delay_sample_right * *mFeedbackParameter;
+            
+            buffer.setSample(0, i, buffer.getSample(0, i) * *mDryWetParameter + delay_sample_left * (1 - *mDryWetParameter));
+            buffer.setSample(1, i, buffer.getSample(1, i) * *mDryWetParameter + delay_sample_right * (1 - *mDryWetParameter));
+            
+            mCircularBufferWriteHead++;
+            if (mCircularBufferWriteHead >= mCircularBufferLength) {
+                mCircularBufferWriteHead = 0;
+            }
         }
-        
-        // assuming an intersample value for mDelayReadHead, separate int from mantessa:
-        int readHead_x = (int)mCircularBufferReadHead;
-        int readHead_x1 = readHead_x + 1;
-        
-        float readHeadFloat = mCircularBufferReadHead - readHead_x;
-        
-        if (readHead_x1 >= mCircularBufferLength) {
-            readHead_x1 -= mCircularBufferLength;
-        }
-        
-        
-        float delay_sample_left = lin_interp(mCircularBufferLeft[readHead_x], mCircularBufferLeft[readHead_x1], readHeadFloat);
-        float delay_sample_right = lin_interp(mCircularBufferRight[readHead_x], mCircularBufferRight[readHead_x1], readHeadFloat);
-        
-        mFeedbackLeft = delay_sample_left * *mFeedbackParameter;
-        mFeedbackRight = delay_sample_right * *mFeedbackParameter;
-        
-        buffer.setSample(0, i, buffer.getSample(0, i) * *mDryWetParameter + delay_sample_left * (1 - *mDryWetParameter));
-        buffer.setSample(1, i, buffer.getSample(1, i) * *mDryWetParameter + delay_sample_right * (1 - *mDryWetParameter));
-        
-        mCircularBufferWriteHead++;
-        if (mCircularBufferWriteHead >= mCircularBufferLength) {
-            mCircularBufferWriteHead = 0;
-        }
-    }
 }
 
 //==============================================================================
