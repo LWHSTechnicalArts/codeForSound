@@ -63,7 +63,7 @@ private:
     float mDryWet;
     float mLFOPhase;
     
-    /** Paraameter Declarations */
+    /** Parameter Declarations */
     
     juce::AudioParameterFloat* mDryWetParameter;
     juce::AudioParameterFloat* mDepthParameter;
